@@ -1,0 +1,151 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appservice.name": {
+      "type": "string"
+    },
+    "appservice.iprestrictions.ip": {
+      "type": "string"
+    },
+    "appserviceplan.name": {
+      "type": "string"
+    },
+    "insights.name": {
+      "type": "string"
+    },
+    "connectionString": {
+      "type": "securestring"
+    },
+    "updatedBy": { "type": "string" },
+    "updatedOn": { "type": "string" },
+    "dateFormat": {
+      "type": "string",
+      "defaultValue": "yyyyMMdd"
+    },
+    "appserviceplan.sku.name": {
+      "type": "string",
+      "defaultValue": "B1",
+      "allowedValues": [
+        "F1",
+        "D1",
+        "B1",
+        "B2",
+        "B3",
+        "S1",
+        "S2",
+        "S3",
+        "P1",
+        "P2"
+      ]
+    },
+    "appserviceplan.sku.tier": {
+      "type": "string"
+    }
+  },
+  "variables": {
+    "subscriptionId": "[subscription().subscriptionId]",
+    "resourceGroupName": "[resourceGroup().name]",
+    "location": "[resourceGroup().location]"
+  },
+  "resources": [
+    {
+      "type": "microsoft.insights/components",
+      "apiVersion": "2015-05-01",
+      "name": "[parameters('insights.name')]",
+      "location": "[variables('location')]",
+      "kind": "web",
+      "properties": {
+        "Application_Type": "web"
+      },
+      "tags": {
+        "UpdatedBy": "[parameters('updatedBy')]",
+        "UpdatedOn": "[parameters('updatedOn')]",
+        "DateFormat": "[parameters('dateFormat')]"
+      }
+    },
+    {
+      "name": "[parameters('appserviceplan.name')]",
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2019-08-01",
+      "location": "[variables('location')]",
+      "sku": {
+        "name": "[parameters('appserviceplan.sku.name')]",
+        "tier": "[parameters('appserviceplan.sku.tier')]"
+      },
+      "tags": {
+        "UpdatedBy": "[parameters('updatedBy')]",
+        "UpdatedOn": "[parameters('updatedOn')]",
+        "DateFormat": "[parameters('dateFormat')]"
+      },
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2019-08-01",
+      "name": "[parameters('appservice.name')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', parameters('appserviceplan.name'))]"
+      ],
+      "tags": {
+        "UpdatedBy": "[parameters('updatedBy')]",
+        "UpdatedOn": "[parameters('updatedOn')]",
+        "DateFormat": "[parameters('dateFormat')]"
+      },
+      "kind": "app",
+      "properties": {
+        "serverFarmId": "[concat('/subscriptions/', variables('subscriptionId'),'/resourceGroups/', variables('resourceGroupName'),'/providers/Microsoft.Web/serverfarms/', parameters('appserviceplan.name'))]",
+        "scmType": "VSTSRM",
+        "siteConfig": {
+          "connectionStrings": [
+            {
+              "name": "DefaultConnection",
+              "type": "SQLAzure",
+              "connectionString": "[parameters('connectionString')]"
+            }
+          ],
+          "defaultDocuments": [
+            "index.html",
+            "iisstart.htm",
+            "hostingstart.html"
+          ],
+          "scmIpSecurityRestrictions": [
+            {
+              "ipAddress": "[parameters('appservice.iprestrictions.ip')]",
+              "action": "Allow",
+              "priority": 100,
+              "name": "Publicis All"
+            },
+            {
+              "ipAddress": "Any",
+              "action": "Deny",
+              "priority": 2147483647,
+              "name": "Deny all",
+              "description": "Deny all access"
+            }
+          ],
+          "http20Enabled": true,
+          "minTlsVersion": "1.2",
+          "ftpsState": "Disabled",
+          "use32BitWorkerProcess": false
+        },
+        "httpsOnly": true
+      }
+    }
+  ],
+  "outputs": {
+    "Location": {
+      "type": "string",
+      "value": "[variables('location')]"
+    },
+    "Subscription": {
+      "type": "string",
+      "value": "[variables('subscriptionId')]"
+    },
+    "Resourcegroup": {
+      "type": "string",
+      "value": "[variables('resourceGroupName')]"
+    }
+  }
+}

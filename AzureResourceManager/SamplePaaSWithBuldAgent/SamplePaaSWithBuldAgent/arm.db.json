@@ -1,0 +1,204 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "database_server_name": {
+      "type": "string"
+    },
+    "database_name": {
+      "type": "string"
+    },
+    "databasePassword": {
+      "type": "securestring"
+    },
+    "databaseSkuName": {
+      "type": "string"
+    },
+    "databaseSkuTier": {
+      "type": "string"
+    },
+    "databaseSkuFamily": {
+      "type": "string"
+    },
+    "databaseSkuCapacity": {
+      "type": "int"
+    },
+    "storageAccountName": {
+      "type": "string"
+    },
+    "databaseSkuKind": {
+      "type": "string"
+    },
+    "updatedBy": {
+      "type": "string"
+    },
+    "updatedOn": {
+      "type": "string"
+    },
+    "firewallAllowedIp": {
+      "type": "string"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "name": "[parameters('storageAccountName')]",
+      "apiVersion": "2017-10-01",
+      "location": "[variables('location')]",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "Storage",
+      "properties": {
+      }
+    },
+    {
+      "type": "Microsoft.Sql/servers",
+      "apiVersion": "2019-06-01-preview",
+      "name": "[parameters('database_server_name')]",
+      "location": "[variables('location')]",
+      "tags": {
+        "UpdatedBy": "[parameters('updatedBy')]",
+        "UpdatedOn": "[parameters('updatedOn')]"
+      },
+      "kind": "v12.0",
+      "properties": {
+        "administratorLogin": "demo",
+        "administratorLoginPassword": "[parameters('databasePassword')]",
+        "version": "12.0"
+      },
+      "resources": [
+        {
+          "apiVersion": "2017-03-01-preview",
+          "type": "auditingSettings",
+          "name": "DefaultAuditingSettings",
+          "dependsOn": [
+            "[parameters('database_server_name')]",
+            "[parameters('storageAccountName')]"
+          ],
+          "properties": {
+            "state": "Enabled",
+            "storageEndpoint": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2018-03-01-preview').PrimaryEndpoints.Blob]",
+            "storageAccountAccessKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2018-03-01-preview').keys[0].value]",
+            "storageAccountSubscriptionId": "[subscription().subscriptionId]",
+            "auditActionsAndGroups": null,
+            "isStorageSecondaryKeyInUse": false
+          }
+        },
+        {
+          "type": "databases",
+          "apiVersion": "2019-06-01-preview",
+          "name": "[parameters('database_name')]",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Sql/servers', parameters('database_server_name'))]"
+          ],
+          "tags": {
+            "UpdatedBy": "[parameters('updatedBy')]",
+            "UpdatedOn": "[parameters('updatedOn')]"
+          },
+          "sku": {
+            "name": "[parameters('databaseSkuName')]",
+            "tier": "[parameters('databaseSkuTier')]",
+            "family": "[parameters('databaseSkuFamily')]",
+            "capacity": "[parameters('databaseSkuCapacity')]"
+          },
+          "kind": "[parameters('databaseSkuKind')]",
+          "properties": {
+            "collation": "SQL_Latin1_General_CP1_CI_AS",
+            "maxSizeBytes": 3221225472,
+            "catalogCollation": "SQL_Latin1_General_CP1_CI_AS",
+            "zoneRedundant": false,
+            "readScale": "Disabled",
+            "readReplicaCount": 0,
+            "autoPauseDelay": 60,
+            "storageAccountType": "GRS",
+            "minCapacity": 1
+          },
+          "resources": [
+            {
+              "name": "default",
+              "type": "backupLongTermRetentionPolicies",
+              "dependsOn": [
+                "[concat('Microsoft.Sql/servers/', parameters('database_server_name'), '/', 'databases', '/', parameters('database_name'))]"
+              ],
+              "apiVersion": "2017-03-01-preview",
+              "properties": {
+                "weeklyRetention": "P5W",
+                "monthlyRetention": "P5M",
+                "yearlyRetention": "P2Y",
+                "weekOfYear": 1
+              }
+            },
+            {
+              "type": "transparentDataEncryption",
+              "apiVersion": "2014-04-01",
+              "name": "current",
+              "location": "[variables('location')]",
+              "dependsOn": [
+                "[concat('Microsoft.Sql/servers/', parameters('database_server_name'), '/', 'databases', '/', parameters('database_name'))]",
+                "[resourceId('Microsoft.Sql/servers', parameters('database_server_name'))]"
+              ],
+              "properties": {
+                "status": "Enabled"
+              }
+            },
+            {
+              "type": "advisors",
+              "name": "CreateIndex",
+              "apiVersion": "2014-04-01",
+              "scale": null,
+              "properties": {
+                "autoExecuteValue": "Enabled"
+              },
+              "dependsOn": [
+                "[concat('Microsoft.Sql/servers/', parameters('database_server_name'), '/', 'databases', '/', parameters('database_name'))]",
+                "[resourceId('Microsoft.Sql/servers', parameters('database_server_name'))]"
+              ]
+            },
+            {
+              "type": "advisors",
+              "name": "DropIndex",
+              "apiVersion": "2014-04-01",
+              "scale": null,
+              "properties": {
+                "autoExecuteValue": "Enabled"
+              },
+              "dependsOn": [
+                "[concat('Microsoft.Sql/servers/', parameters('database_server_name'), '/', 'databases', '/', parameters('database_name'))]",
+                "[resourceId('Microsoft.Sql/servers', parameters('database_server_name'))]"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "firewallRules",
+          "apiVersion": "2015-05-01-preview",
+          "name": "AllowAllWindowsAzureIps",
+          "dependsOn": [
+            "[resourceId('Microsoft.Sql/servers', parameters('database_server_name'))]"
+          ],
+          "properties": {
+            "startIpAddress": "0.0.0.0",
+            "endIpAddress": "0.0.0.0"
+          }
+        },
+        {
+          "type": "firewallRules",
+          "apiVersion": "2015-05-01-preview",
+          "name": "home",
+          "dependsOn": [
+            "[resourceId('Microsoft.Sql/servers', parameters('database_server_name'))]"
+          ],
+          "properties": {
+            "startIpAddress": "[parameters('firewallAllowedIp')]",
+            "endIpAddress": "[parameters('firewallAllowedIp')]"
+          }
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "location": "[resourceGroup().location]"
+  }
+}
